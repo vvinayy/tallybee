@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>TallyBee Tester Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* One reading column in TallyBee's Meadow & Honey look: a honey header, steps as a numbered path, notes set off on mint. */
+  :root {
+    --bg: #F8FCF2;          /* meadow page */
+    --surface: #FFFFFF;
+    --ink: #0F2B1C;         /* forest */
+    --ink-soft: #3B5446;
+    --accent: #C6F25E;      /* lime */
+    --honey: #FFC530;
+    --honey-pale: #FFF3CC;
+    --note: #E5F7D6;        /* mint */
+    --line: #D5E3C8;
+    --warn: #B4500E;
+    --google-blue: #1A73E8;
+    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --body: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --mono: "Space Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F2B1C; --surface: #163826; --ink: #F3F8EC; --ink-soft: #B8CBB0; --accent: #C6F25E;
+      --honey: #FFC530; --honey-pale: #3A3410; --note: #1C4A31; --line: #2E5A40; --warn: #FFB27A; --google-blue: #8AB4F8;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F2B1C; --surface: #163826; --ink: #F3F8EC; --ink-soft: #B8CBB0; --accent: #C6F25E;
+    --honey: #FFC530; --honey-pale: #3A3410; --note: #1C4A31; --line: #2E5A40; --warn: #FFB27A; --google-blue: #8AB4F8;
+    color-scheme: dark;
+  }
+
+  [hidden] { display: none !important; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.6; font-variation-settings: "wdth" 96; }
+  .wrap { max-width: 720px; margin: 0 auto; padding-inline: 20px; padding-block: 0 72px; }
+
+  header.top { background: var(--honey); color: #0F2B1C; padding-inline: 20px; padding-block: 36px 40px; }
+  header.top .inner { max-width: 720px; margin: 0 auto; display: grid; gap: 14px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-weight: 700; font-size: .85rem; letter-spacing: .02em; }
+  .brand svg { width: 30px; height: 34px; flex: none; }
+  h1 { font-family: var(--display); font-size: clamp(2.1rem, 6vw, 3.1rem); line-height: 1.05; font-weight: 800; letter-spacing: -.02em; text-wrap: balance; margin: 0; font-variation-settings: "wdth" 90; }
+  .lede { font-size: 1.15rem; max-width: 44ch; margin: 0; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .fact { background: #0F2B1C; color: #F8FCF2; border-radius: 999px; padding: 4px 12px; font-size: .85rem; font-weight: 600; }
+
+  h2 { font-family: var(--display); font-size: 1.6rem; line-height: 1.2; font-weight: 750; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+  h3 { font-family: var(--display); font-size: 1.15rem; line-height: 1.3; font-weight: 700; margin: 0; }
+  section { display: grid; gap: 16px; padding-block: 40px 0; }
+  p { margin: 0; max-width: 64ch; }
+  .muted { color: var(--ink-soft); }
+  b, strong { font-weight: 700; }
+  .ui { font-weight: 700; white-space: nowrap; }
+  code, .mono { font-family: var(--mono); font-size: .85em; }
+
+  .links { display: grid; gap: 10px; }
+  .link-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .link-row .what { flex: 1 1 220px; min-width: 0; }
+  .link-row .what span { display: block; font-size: .9rem; color: var(--ink-soft); }
+  .btn { display: inline-block; background: var(--ink); color: var(--bg); text-decoration: none; font-weight: 700; padding: 9px 16px; border-radius: 10px; box-shadow: 3px 3px 0 var(--accent); }
+  .btn:focus-visible, a:focus-visible { outline: 3px solid var(--honey); outline-offset: 3px; }
+  .pending { font-size: .9rem; color: var(--ink-soft); font-style: italic; }
+
+  .note { background: var(--note); border-radius: 14px; padding: 16px 18px; display: grid; gap: 6px; }
+  .note.warn { background: var(--honey-pale); }
+
+  ol.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; gap: 18px; }
+  ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 4px 14px; }
+  ol.steps > li::before { content: counter(step); grid-row: span 3; width: 34px; height: 38px; display: grid; place-items: center; font-family: var(--mono); font-weight: 700; color: #0F2B1C; background: var(--honey);
+    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+  ol.steps > li > * { grid-column: 2; }
+  .check { color: var(--ink-soft); font-size: .95rem; }
+  .check::before { content: "Check: "; font-weight: 700; color: var(--ink); }
+
+  /* A sketch of Google's warning, so the click path is recognisable. */
+  .gscreen { background: #FFFFFF; color: #202124; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; font-family: Arial, "Segoe UI", sans-serif; font-size: .9rem; display: grid; gap: 10px; max-width: 420px; }
+  .gscreen .gtitle { font-size: 1.25rem; }
+  .gscreen .glink { color: #1A73E8; text-decoration: underline; font-weight: 700; }
+  .gscreen .ghint { position: relative; }
+  .gscreen .arrow { font-family: var(--mono); font-size: .75rem; color: #B4500E; font-weight: 700; }
+
+  ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+  .files { display: flex; flex-wrap: wrap; gap: 6px; }
+  .files span { font-family: var(--mono); font-size: .75rem; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
+  footer { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 18px; font-size: .9rem; color: var(--ink-soft); display: grid; gap: 6px; }
+  @media (prefers-reduced-motion: no-preference) { .btn { transition: transform .12s ease, box-shadow .12s ease; } .btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--accent); } }
+</style>
+
+<header class="top">
+  <div class="inner">
+    <div class="brand">
+      <svg viewBox="0 0 30 34" aria-hidden="true"><path d="M15 1 29 9v16L15 33 1 25V9z" fill="#0F2B1C"/><path d="M15 8l7 4v8l-7 4-7-4v-8z" fill="#C6F25E"/></svg>
+      TALLYBEE · TEST VERSION
+    </div>
+    <h1>Thanks for testing TallyBee</h1>
+    <p class="lede">TallyBee is a Google Sheet for US freelancers. It sorts your business expenses into Schedule C lines and tracks your quarterly tax payments. Your honest opinion decides what gets fixed before it goes on sale.</p>
+    <div class="facts"><span class="fact">About 40 minutes</span><span class="fact">On a computer</span><span class="fact">Free Google account</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section aria-labelledby="links-h">
+    <h2 id="links-h">Your two links</h2>
+    <div class="links">
+      <div class="link-row">
+        <div class="what"><strong>Your own copy of TallyBee</strong><span>Opens Google's "Make a copy" page.</span></div>
+        <a class="btn" id="copy-link" hidden target="_blank" rel="noopener">Make my copy</a>
+        <span class="pending" id="copy-pending">The link is in the message you received.</span>
+      </div>
+      <div class="link-row">
+        <div class="what"><strong>The feedback form</strong><span>About 10 minutes, when you're done.</span></div>
+        <a class="btn" id="form-link" hidden target="_blank" rel="noopener">Give feedback</a>
+        <span class="pending" id="form-pending">The link is in the message you received.</span>
+      </div>
+    </div>
+    <div class="note">
+      <h3>Your data stays with you</h3>
+      <p>Your copy lives in your own Google Drive. TallyBee has no server, and the person who sent you this can't see your sheet. Never send anyone your bank files: only your answers on the form.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="setup-h">
+    <h2 id="setup-h">Set it up (5 minutes)</h2>
+    <ol class="steps">
+      <li><p>Open <b>your copy link</b> and click <span class="ui">Make a copy</span>. The sheet and TallyBee are copied into your Google Drive.</p></li>
+      <li><p>In your copy, wait about ten seconds for the <span class="ui">🐝 TallyBee</span> menu next to <span class="ui">Help</span>, then click <span class="ui">🐝 TallyBee › 🏠 Home</span>.</p></li>
+      <li>
+        <p>Google asks for permission. Pick your account. Because this test copy hasn't been through Google's review yet, you'll likely see a warning. Click <b>Advanced</b>, then <b>Go to TallyBee (unsafe)</b>. If Google shows checkboxes, tick <b>Select all</b>, then <b>Continue</b>.</p>
+        <div class="gscreen" role="img" aria-label="Sketch of Google's warning screen with the Advanced link and the Go to TallyBee (unsafe) link highlighted">
+          <div class="gtitle">Google hasn't verified this app</div>
+          <div>The app is requesting access to sensitive info in your Google Account…</div>
+          <div class="ghint"><span class="glink">Advanced</span> <span class="arrow">← click this first</span></div>
+          <div class="ghint"><span class="glink">Go to TallyBee (unsafe)</span> <span class="arrow">← then this</span></div>
+        </div>
+        <p class="check">it asks for four things only: this spreadsheet; Google Drive files you use with TallyBee (to read receipts); connecting to an external service (Google's own, to fetch a receipt's text); and showing its windows. If it asks for anything more, stop and tell us on the form.</p>
+      </li>
+      <li><p>Home opens. Pick <b>your kind of work</b>, read the five short points, tick <span class="ui">I understand</span> and click <span class="ui">Start using TallyBee</span>.</p></li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="try-h">
+    <h2 id="try-h">Try these six things</h2>
+    <p class="muted">Each one has something to look out for. Write down anything that surprises you, good or bad.</p>
+    <ol class="steps">
+      <li>
+        <h3>See it with sample data</h3>
+        <p>On Home, click <span class="ui">Try sample data</span>. Look at the <b>Transactions</b> tab and the <b>Tax Summary</b> tab. When you're done, click <span class="ui">Remove sample data</span> on Home.</p>
+        <p class="check">does it make sense without anyone explaining it?</p>
+      </li>
+      <li>
+        <h3>Import a real bank file</h3>
+        <p>Download one to three months of transactions as a <b>CSV</b> from your bank, card, PayPal or Venmo website (usually under Activity or Statements, then Download). On Home, click <span class="ui">Import a bank file</span>, choose it, and type the account's name, like <code>Chase Checking</code>. No bank file to hand? Use the sample files that came with your message.</p>
+        <p class="check">is money in and money out the right way round? Are the dates right? Is anything missing or doubled?</p>
+      </li>
+      <li>
+        <h3>Sort what's left</h3>
+        <p>Rows TallyBee couldn't place show in amber on Home. Click <span class="ui">Show them</span>, pick a category in the <b>Category</b> column, and answer <span class="ui">Remember this rule?</span> when it asks.</p>
+        <p class="check">did most of your rows already have the right category? Which ones were wrong?</p>
+      </li>
+      <li>
+        <h3>Add a bill</h3>
+        <p>On Home, click <span class="ui">Add a bill</span>. Upload a photo or PDF of a receipt (JPG, PNG or PDF), or type one in by hand.</p>
+        <p class="check">did it read the date, the store and the total correctly?</p>
+      </li>
+      <li>
+        <h3>Look at your taxes</h3>
+        <p>On the <b>Setup</b> tab, enter <b>last year's total federal tax</b> (from your last Form 1040) if you know it. If part of your home is only for work, try <b>Home office square feet</b> too. Then open the <b>Tax Summary</b> (your Schedule C, line by line) and <b>Estimated Tax</b> (your next quarterly payment).</p>
+        <p class="check">would you trust these numbers enough to show your tax preparer?</p>
+      </li>
+      <li>
+        <h3>Try to break it</h3>
+        <p>Import the same file twice. Type over a number in the <b>Deductible</b> column. Put a grocery bill under Office Supplies. If you use PayPal or Venmo, import that file <i>and</i> your bank's.</p>
+        <p class="check">does it catch you, and does it explain why? Is any money counted twice?</p>
+      </li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="known-h">
+    <h2 id="known-h">Already known, no need to report</h2>
+    <ul class="plain">
+      <li>It doesn't work in the Google Sheets phone app. Google doesn't run add-on windows there.</li>
+      <li>It doesn't connect to your bank automatically. That's on purpose: you never give anyone your bank login.</li>
+      <li>It covers federal tax for one Schedule C business. No state tax, rentals or farming.</li>
+      <li>It uses the 2026 IRS figures. The 2027 update comes once the IRS publishes them.</li>
+    </ul>
+    <div class="note warn">
+      <h3>Not tax advice</h3>
+      <p>TallyBee is a record-keeping tool built on published IRS rules, with sources. It doesn't prepare or file your return. Please don't file anything based on this test.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="samples-h">
+    <h2 id="samples-h">The sample files</h2>
+    <p>The zip in your message holds made-up exports for a fictional freelancer, Alex Rivera, in each bank's real layout. No real person or account is in them.</p>
+    <div class="files"><span>chase-checking.csv</span><span>chase-credit-card.csv</span><span>bank-of-america-checking.csv</span><span>bank-of-america-credit-card.csv</span><span>wells-fargo-checking.csv</span><span>capital-one-credit-card.csv</span><span>citi-credit-card.csv</span><span>american-express.csv</span><span>discover.csv</span><span>apple-card.csv</span><span>paypal.csv</span><span>venmo.csv</span></div>
+  </section>
+
+  <section aria-labelledby="done-h">
+    <h2 id="done-h">When you're done</h2>
+    <p>Fill in the feedback form. Short, blunt answers help most, and "I gave up at step 2" is a great answer. Screenshots of anything odd are welcome, with account numbers covered.</p>
+  </section>
+
+  <footer>
+    <span>TallyBee test version, October 2026.</span>
+    <span>Thank you for your time.</span>
+  </footer>
+</main>
+
+<script>
+  // Filled in once the links exist; until then the page points to the message.
+  var LINKS = { copy: "", form: "" };
+  [["copy", "copy-link", "copy-pending"], ["form", "form-link", "form-pending"]].forEach(function (k) {
+    if (!/^https:\/\//.test(LINKS[k[0]])) return;
+    var a = document.getElementById(k[1]);
+    a.href = LINKS[k[0]];
+    a.hidden = false;
+    document.getElementById(k[2]).hidden = true;
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>TallyBee Demo Film</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: a 16:9 "screen" with the film, a progress bar, controls, and a caption that says which user need the scene meets.
+   Look: TallyBee's Meadow & Honey, as in the app and on the website: a bright meadow, white cards with forest outlines and
+   hard shadows, honey for what needs attention, lime for what's done. Light only, like the app. */
+:root {
+  --forest: #0F2B1C; --forest-2: #1C4A31; --forest-soft: #3B5446;
+  --lime: #C6F25E; --honey: #FFC530; --honey-pale: #FFF3CC;
+  --tangerine: #FF7A1A; --tangerine-pale: #FFE6D2; --mint: #E5F7D6;
+  --page: #F8FCF2; --white: #FFFFFF; --line: #D5E3C8;
+  --display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif; --mono: 'Space Mono', ui-monospace, Consolas, monospace;
+  --soft: cubic-bezier(.16, 1, .3, 1);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--forest); font-family: var(--display); padding-inline: 16px; padding-block: 20px 28px; }
+.wrap { max-width: 1040px; margin: 0 auto; display: grid; gap: 14px; }
+.stage {
+  position: relative; aspect-ratio: 16 / 9; container-type: size; overflow: hidden;
+  border: 2px solid var(--forest); border-radius: 18px; box-shadow: 6px 6px 0 var(--forest);
+  background: radial-gradient(circle at 88% 8%, rgb(198 242 94 / .45), transparent 38%),
+              radial-gradient(circle at 6% 94%, rgb(255 197 48 / .32), transparent 42%), var(--page);
+}
+.scene { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .35s; padding: 4cqw 5cqw; }
+.scene.on { opacity: 1; visibility: visible; }
+.paused *, .paused *::before, .paused *::after { animation-play-state: paused !important; }
+
+/* ----- motion vocabulary (only inside the active scene) ----- */
+@keyframes drop { from { opacity: 0; transform: translateY(-9cqh); } to { opacity: 1; transform: none; } }
+@keyframes rise { from { opacity: 0; transform: translateY(6cqh); } to { opacity: 1; transform: none; } }
+@keyframes pop { 0% { opacity: 0; transform: scale(.5); } 70% { transform: scale(1.08); } 100% { opacity: 1; transform: none; } }
+@keyframes slideL { from { opacity: 0; transform: translateX(-8cqw); } to { opacity: 1; transform: none; } }
+@keyframes slideR { from { opacity: 0; transform: translateX(8cqw); } to { opacity: 1; transform: none; } }
+@keyframes stamp { 0% { opacity: 0; transform: scale(2.4) rotate(-14deg); } 60% { opacity: 1; transform: scale(.94) rotate(-6deg); } 100% { opacity: 1; transform: scale(1) rotate(-6deg); } }
+@keyframes bob { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(-2.2cqh) rotate(calc(var(--r, 0deg) * -1)); } }
+@keyframes shake { 0%, 100% { transform: none; } 20% { transform: translateX(-1.2cqw); } 40% { transform: translateX(1.2cqw); } 60% { transform: translateX(-.8cqw); } 80% { transform: translateX(.8cqw); } }
+@keyframes flashBad { 0%, 100% { background: var(--white); } 30% { background: var(--tangerine-pale); } }
+@keyframes caret { 50% { opacity: 0; } }
+@keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes turn { to { rotate: 360deg; } }
+/* Reading a bill: the honey hexagon from Add a Bill appears, spins twice, and steps aside */
+@keyframes hexread { 0% { opacity: 0; scale: .4; rotate: 0deg; } 12% { opacity: 1; scale: 1; } 85% { opacity: 1; rotate: 720deg; } 100% { opacity: 0; rotate: 720deg; scale: .6; } }
+.on .a-drop { animation: drop .6s var(--d, 0s) both cubic-bezier(.2, .9, .3, 1.2); }
+.on .a-rise { animation: rise .6s var(--d, 0s) both ease-out; }
+.on .a-pop { animation: pop .5s var(--d, 0s) both; }
+.on .a-l { animation: slideL .6s var(--d, 0s) both ease-out; }
+.on .a-r { animation: slideR .6s var(--d, 0s) both ease-out; }
+.on .a-fade { animation: fade .6s var(--d, 0s) both; }
+.on .a-wipe { animation: wipe .9s var(--d, 0s) both ease-out; }
+.on .a-stamp { animation: stamp .5s var(--d, 0s) both ease-out; }
+.on .a-bob { animation: bob 4s var(--d, 0s) infinite ease-in-out; }
+.go.shake { animation: shake .5s both; }
+.go.bad { animation: flashBad 1s both; }
+.hold { opacity: 0; }
+.go.show { opacity: 1; animation: pop .4s both; }
+.go.hide { opacity: 0; transition: opacity .3s; }
+
+/* ----- shared bits ----- */
+.big { font-size: 7.4cqw; font-weight: 800; font-stretch: 84%; letter-spacing: -.03em; line-height: .98; margin: 0; }
+.mid { font-size: 3.7cqw; font-weight: 800; font-stretch: 86%; line-height: 1.1; margin: 0; letter-spacing: -.02em; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+/* Highlighter marks, as on the website: honey = what needs your eye, lime = done or good */
+.hl, .ok-hl { display: inline-block; color: var(--forest); padding: 0 .28em; border-radius: .25em; }
+.hl { background: var(--honey); }
+.ok-hl { background: var(--lime); }
+.box { display: inline-block; padding: 0 .16em; border: .3cqw solid var(--forest); border-radius: .14em; box-shadow: .45cqw .45cqw 0 var(--forest); }
+.box.honey { background: var(--honey); rotate: -2deg; } .box.lime { background: var(--lime); rotate: 1.5deg; }
+.dim { color: var(--forest-soft); }
+.chip { display: inline-block; padding: .4cqh 1.1cqw; border-radius: 99px; font-size: 1.6cqw; font-weight: 700; white-space: nowrap; border: .2cqw solid var(--forest); color: var(--forest); }
+.chip.ok { background: var(--mint); }
+.chip.no { background: var(--tangerine-pale); }
+.chip.warn { background: var(--honey); }
+.chip.done { background: var(--lime); }
+.card { background: var(--white); border: .22cqw solid var(--forest); border-radius: 1.6cqw; box-shadow: .45cqw .45cqw 0 var(--forest); padding: 1.6cqw; }
+.paper { background: var(--white); color: var(--forest); border: .22cqw solid var(--forest); border-radius: .9cqw; box-shadow: .4cqw .4cqw 0 var(--forest); }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 3cqw; align-items: center; height: 100%; }
+.cols > * { min-width: 0; }
+.center { display: grid; place-items: center; text-align: center; height: 100%; align-content: center; gap: 2.4cqh; }
+.row { display: grid; grid-template-columns: 1.1fr 1.9fr 1.4fr; gap: 1cqw; align-items: center; padding: 1.2cqh 1.2cqw; font-size: 1.9cqw; border-bottom: .15cqw dashed var(--line); }
+.row:last-child { border: 0; }
+.caret::after { content: ''; display: inline-block; width: .25em; height: 1em; margin-left: .1em; background: var(--forest); vertical-align: text-bottom; animation: caret 1s infinite; }
+.logo { width: 6cqw; height: 6cqw; }
+.ico { width: 1em; height: 1em; display: inline-block; vertical-align: -.12em; }
+
+/* ----- scene 1: title ----- */
+.s1 .word { display: flex; gap: .06em; align-items: baseline; }
+.s1 .word span { display: inline-block; }
+.s1 .tag { font-size: 2.3cqw; color: var(--forest-soft); max-width: 60cqw; margin: 0; }
+.s1 .bar { width: 46cqw; height: 1.2cqh; background: var(--mint); border: .18cqw solid var(--forest); border-radius: 9px; overflow: hidden; }
+.s1 .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--lime), var(--honey)); }
+
+/* ----- scene 2: the pile of receipts ----- */
+.pile { position: relative; height: 100%; }
+.slip { position: absolute; width: 17cqw; padding: 1.2cqw 1.4cqw; font-size: 1.7cqw; --r: 3deg; }
+.slip b { display: block; font-size: 2.2cqw; margin-top: .4cqh; }
+.slip .q { position: absolute; right: -1.4cqw; top: -2cqh; background: var(--honey); color: var(--forest); font-weight: 800; width: 3.6cqw; height: 3.2cqw; display: grid; place-items: center; font-size: 2cqw;
+  clip-path: polygon(25% 2%, 75% 2%, 98% 50%, 75% 98%, 25% 98%, 2% 50%); }
+.ask { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; background: var(--white); padding: 2.6cqh 3cqw;
+  border: .25cqw solid var(--forest); border-radius: 1.8cqw; box-shadow: .6cqw .6cqw 0 var(--forest); }
+
+/* ----- scene 3: first use ----- */
+.panel { width: 100%; max-width: 32cqw; font-size: 1.7cqw; display: grid; gap: 1.4cqh; }
+.panel .sel { border: .2cqw solid var(--forest); background: var(--white); border-radius: .8cqw; padding: .9cqh 1cqw; font-weight: 600; min-height: 4cqh; }
+.comb { display: flex; gap: .5cqw; } .comb span { width: 3.3cqw; height: 4.6cqw; border: .2cqw solid var(--forest); border-radius: .5cqw; background: var(--honey-pale); display: grid; place-items: center; font: 700 2.3cqw var(--mono); }
+.comb span.on-d { animation: pop .3s var(--d) both; }
+.panel .btn { background: var(--mint); color: var(--forest-soft); text-align: center; border: .2cqw solid var(--forest-soft); border-radius: 1cqw; padding: 1cqh; font-weight: 700; }
+.panel .btn.go { animation: pop .35s both; background: var(--lime); color: var(--forest); border-color: var(--forest); box-shadow: .35cqw .35cqw 0 var(--forest); }
+.tick { display: inline-grid; place-items: center; width: 2.2cqw; height: 2.2cqw; border: .2cqw solid var(--forest); border-radius: .4cqw; margin-right: .8cqw; vertical-align: middle; font-size: 1.5cqw; background: var(--white); }
+.tick.go { background: var(--lime); }
+.tick.go::after { content: '✓'; font-weight: 800; }
+.saved { margin-top: 3cqh; font: 700 2cqw var(--mono); background: var(--lime); border: .22cqw solid var(--forest); display: inline-block; padding: 1cqh 1.4cqw; border-radius: .8cqw; }
+
+/* ----- scene 4: import + split ----- */
+.csv { font-family: var(--mono); font-size: 1.3cqw; line-height: 1.9; color: var(--forest-soft); }
+.csv div { white-space: nowrap; }
+.receipt { position: relative; padding: 1.4cqw 1.6cqw; font-family: var(--mono); font-size: 1.55cqw; }
+.hexspin { position: absolute; right: 1.4cqw; top: 1.2cqw; width: 4.6cqw; height: 4.2cqw; background: var(--honey); opacity: 0;
+  clip-path: polygon(25% 2%, 75% 2%, 98% 50%, 75% 98%, 25% 98%, 2% 50%); display: grid; place-items: center; font-size: 2cqw; }
+.on .hexspin { animation: hexread 2.6s var(--d, 0s) both linear; }
+
+/* ----- scene 5: locked ----- */
+.cell { font: 700 2.1cqw var(--mono); padding: 1.4cqh 1.6cqw; border: .22cqw solid var(--forest); border-radius: 1cqw; background: var(--white); box-shadow: .4cqw .4cqw 0 var(--forest); display: flex; justify-content: space-between; gap: 2cqw; }
+.cell .dim { font-family: var(--display); font-weight: 600; }
+.toast { background: var(--white); border: .22cqw solid var(--forest); border-left: .9cqw solid var(--honey); border-radius: 1cqw; padding: 1.4cqw 1.8cqw; font-size: 1.9cqw; line-height: 1.4; }
+.toast.good { border-left-color: var(--lime); }
+.lock { font-size: 2.8cqw; color: var(--forest); }
+
+/* ----- scene 6: facts ----- */
+.meter { height: 1.6cqh; background: var(--mint); border: .18cqw solid var(--forest); border-radius: 9px; overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--lime); border-right: .2cqw solid var(--forest); animation: grow 1.6s var(--d, 0s) both ease-out; }
+@keyframes grow { to { width: var(--w); } }
+
+/* ----- scene 7: miles ----- */
+.road { width: 100%; height: auto; overflow: visible; }
+.road path { fill: none; stroke: var(--line); stroke-width: 10; stroke-linecap: round; stroke-dasharray: 1; }
+.on .road path.draw { stroke: var(--forest-2); stroke-width: 5; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 5s .3s forwards linear; }
+.on .car { offset-path: path('M20 150 C 110 40, 190 190, 300 80 S 440 120, 480 40'); animation: drive 5s .3s forwards linear; }
+.car { offset-rotate: 0deg; offset-distance: 0%; }
+@keyframes drive { to { offset-distance: 100%; } }
+.rate { display: flex; flex-wrap: wrap; gap: 1.2cqw; align-items: baseline; }
+
+/* ----- scene 8: summary ----- */
+.line { display: grid; grid-template-columns: 9.5cqw 1fr auto; gap: 1.2cqw; align-items: center; padding: 1cqh 0; border-bottom: .15cqw dashed var(--line); font-size: 1.95cqw; }
+.line .n { justify-self: start; font: 700 1.5cqw var(--mono); background: var(--lime); border: .18cqw solid var(--forest); border-radius: 99px; padding: .1cqh .9cqw; white-space: nowrap; }
+.est { text-align: left; box-shadow: .45cqw .45cqw 0 var(--lime), .45cqw .45cqw 0 .22cqw var(--forest); }
+
+/* ----- scene 9/10 ----- */
+.pillars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.6cqw; width: 100%; }
+.pillar { padding: 1.6cqw; text-align: left; } .pillar b { display: block; font-size: 2.2cqw; line-height: 1.15; margin-bottom: .8cqh; } .pillar span { font-size: 1.6cqw; color: var(--forest-soft); line-height: 1.4; display: block; }
+.pillar .ic { font-size: 3.6cqw; margin-bottom: 1cqh; display: block; color: var(--forest); }
+.pillar:nth-child(1) { background: var(--honey-pale); } .pillar:nth-child(3) { background: var(--mint); }
+.spin-hex { position: absolute; width: 22cqw; height: 22cqw; right: -6cqw; top: -7cqw; opacity: .7; animation: turn 30s linear infinite; pointer-events: none; }
+
+/* ----- controls and caption, styled like the app's buttons ----- */
+.progress { height: 10px; background: var(--mint); border: 2px solid var(--forest); border-radius: 9px; overflow: hidden; } .progress i { display: block; height: 100%; width: 0; background: var(--lime); }
+.ctl { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ctl button { font: 700 14px var(--display); color: var(--forest); background: var(--white); border: 2px solid var(--forest); border-radius: 12px; padding: 8px 14px; cursor: pointer; box-shadow: 3px 3px 0 var(--forest); transition: transform .2s var(--soft), box-shadow .2s var(--soft); }
+.ctl button:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--forest); }
+.ctl button:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--forest); }
+.ctl button:focus-visible, .dot:focus-visible { outline: 3px solid var(--tangerine); outline-offset: 2px; }
+.ctl .play { background: var(--lime); min-width: 104px; }
+.dots { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.ctl .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--forest); background: var(--white); cursor: pointer; padding: 0; box-shadow: none; }
+.ctl .dot:hover { transform: none; box-shadow: none; background: var(--mint); }
+.ctl .dot[aria-current="true"] { background: var(--honey); }
+.caption { display: grid; gap: 6px; min-height: 6em; justify-items: start; }
+.caption h2 { margin: 0; font-size: clamp(20px, 2.8vw, 28px); font-weight: 800; font-stretch: 86%; letter-spacing: -.02em; }
+.caption p { margin: 0; color: var(--forest-soft); font-size: clamp(14px, 1.8vw, 17px); line-height: 1.5; max-width: 70ch; }
+.caption .need { font-size: 13px; font-weight: 700; background: var(--lime); border: 2px solid var(--forest); border-radius: 99px; padding: 1px 10px; }
+@media (prefers-reduced-motion: reduce) { .scene *, .scene *::before, .scene *::after { animation: none !important; } .hold { opacity: 1; } .hexspin { display: none; }
+  .on .road path.draw { stroke: var(--forest-2); stroke-width: 5; stroke-dashoffset: 0; } .car { offset-path: path('M20 150 C 110 40, 190 190, 300 80 S 440 120, 480 40'); offset-distance: 100%; } }
+@media (max-width: 560px) { .dots { margin-left: 0; width: 100%; } .pillars { grid-template-columns: 1fr 1fr; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="logo" viewBox="0 0 34 34"><polygon points="17,2 30,9.5 30,24.5 17,32 4,24.5 4,9.5" fill="#FFC530" stroke="#0F2B1C" stroke-width="2.5"/><polygon points="17,11 22.6,14.25 22.6,20.75 17,24 11.4,20.75 11.4,14.25" fill="#C6F25E" stroke="#0F2B1C" stroke-width="1.8"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="#FFC530"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/><circle cx="12" cy="15" r="1.3"/><path d="M12 16.3v1.9"/></g></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z" fill="#C6F25E"/><path d="M13.5 6.5l4 4M4 20h16"/></g></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></g></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18h9.5a3.5 3.5 0 0 0 .7-6.93A5.5 5.5 0 0 0 7.1 9.6 4.25 4.25 0 0 0 7 18z" fill="#FFF3CC"/><path d="M4 4l16 16"/></g></symbol>
+    <symbol id="i-bill" viewBox="0 0 24 24"><g fill="none" stroke="#0F2B1C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" fill="#FFFFFF"/><path d="M9 8h6M9 12h6"/></g></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <div class="stage" id="stage" aria-label="TallyBee demo film">
+
+    <!-- 1 -->
+    <section class="scene s1 on" data-dur="7">
+      <div class="center">
+        <svg class="logo a-pop" style="--d:.1s" aria-hidden="true"><use href="#logo"/></svg>
+        <h1 class="big word"><span class="a-drop" style="--d:.2s">Tally</span><span class="box honey a-drop" style="--d:.45s">Bee</span></h1>
+        <p class="tag a-rise" style="--d:1s">Tax on what you spend. Built on published IRS rules. Every number shows its source.</p>
+        <div class="bar a-fade" style="--d:1.6s"><i class="a-wipe" style="--d:1.8s"></i></div>
+        <span class="chip warn a-pop" style="--d:2.6s">For US freelancers · Schedule C</span>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="scene s2" data-dur="9">
+      <div class="pile">
+        <div class="slip paper a-bob" style="left:6%;top:12%;--r:-4deg;--d:0s"><span class="q">?</span>Walmart<b class="mono">$64.28</b></div>
+        <div class="slip paper a-bob" style="left:24%;top:54%;--r:3deg;--d:.4s"><span class="q">?</span>Adobe<b class="mono">$59.99</b></div>
+        <div class="slip paper a-bob" style="left:66%;top:10%;--r:5deg;--d:.8s"><span class="q">?</span>Verizon<b class="mono">$90.00</b></div>
+        <div class="slip paper a-bob" style="left:76%;top:56%;--r:-3deg;--d:1.2s"><span class="q">?</span>Shell<b class="mono">$41.20</b></div>
+        <div class="slip paper a-bob" style="left:44%;top:6%;--r:2deg;--d:1.6s"><span class="q">?</span>Uber<b class="mono">$18.40</b></div>
+        <div class="slip paper a-bob" style="left:3%;top:68%;--r:-2deg;--d:2s"><span class="q">?</span>Hotel<b class="mono">$212.00</b></div>
+        <div class="ask a-pop" style="--d:1.6s"><p class="mid">Which of these can I deduct?</p><p class="dim" style="margin:1cqh 0 0;font-size:2cqw">…and can I prove it if the IRS asks?</p></div>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="scene s3" data-dur="10">
+      <div class="cols">
+        <div>
+          <p class="mid a-l" style="--d:.1s">Before anything runs, you say what you <span class="hl">do</span>.</p>
+          <p class="dim a-l" style="--d:.4s;font-size:2cqw;margin:1.4cqh 0 0">The IRS wants a business code on Schedule C. It fills itself in.</p>
+          <div class="saved a-stamp" style="--d:7.2s">Saved on your Setup tab, with the date</div>
+        </div>
+        <div class="panel card a-r" style="--d:.3s">
+          <b style="font-size:2.2cqw;font-weight:800">Before you start</b>
+          <div>What kind of work do you do?</div>
+          <div class="sel"><span class="type" data-text="Designer (graphic, web, interior)" data-start="1.2" data-speed="26"></span></div>
+          <div class="comb" id="comb"><span class="on-d" style="--d:2.7s"><i class="count" data-to="5" data-start="2.7" data-dur=".1">5</i></span></div>
+          <div class="dim" style="font-size:1.5cqw">Principal business code (Schedule C, line B)</div>
+          <div><span class="tick" data-at="5.4"></span>I understand: I decide what's business or personal.</div>
+          <div class="btn" data-at="6.2">Start using TallyBee</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="scene s4" data-dur="11">
+      <div class="cols" style="grid-template-columns: .9fr 1.1fr; align-items: start; padding-top: 1cqh">
+        <div style="display:grid;gap:2.4cqh">
+          <div class="csv card a-l" style="--d:.2s">
+            <div>2026-09-01 ADOBE *CREATIVE CLOUD <span class="hl">-59.99</span></div>
+            <div>2026-09-02 AWS.AMAZON.CO <span class="hl">-23.40</span></div>
+            <div>2026-09-05 WHOLEFDS MKT #10234 <span class="hl">-84.12</span></div>
+            <div>2026-09-09 HISCOX INSURANCE <span class="hl">-60.00</span></div>
+          </div>
+          <div class="receipt paper a-l" style="--d:4.6s">
+            <i class="hexspin" style="--d:4.8s"><svg class="ico" aria-hidden="true"><use href="#i-bill"/></svg></i>
+            WALMART<br>BANANAS ........ 4.00<br>PRINTER PAPER ... 6.00<br>TOTAL .......... 10.00
+          </div>
+        </div>
+        <div class="card" style="padding:.6cqw">
+          <div class="row a-rise" style="--d:1s"><span class="dim">Adobe</span><span>Software &amp; Web Hosting</span><span class="chip ok">Deductible</span></div>
+          <div class="row a-rise" style="--d:1.5s"><span class="dim">AWS</span><span>Software &amp; Web Hosting</span><span class="chip ok">Deductible</span></div>
+          <div class="row a-rise" style="--d:2s"><span class="dim">Whole Foods</span><span>Groceries &amp; Essentials</span><span class="chip no">Not deductible</span></div>
+          <div class="row a-rise" style="--d:2.5s"><span class="dim">Hiscox</span><span>Business Insurance</span><span class="chip ok">Deductible</span></div>
+          <div class="row a-rise" style="--d:7s"><span class="dim">Walmart</span><span>Groceries · Bananas</span><span class="chip no">Not deductible</span></div>
+          <div class="row a-rise" style="--d:7.8s"><span class="dim">Walmart</span><span>Office Supplies · Paper</span><span class="chip ok">Deductible</span></div>
+          <p class="dim a-fade" style="--d:8.8s;font-size:1.7cqw;margin:1cqh 1.2cqw">One receipt, two categories: it's your purpose that decides, item by item.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section class="scene s5" data-dur="11">
+      <div class="center" style="gap:3cqh">
+        <p class="mid a-drop" style="--d:.1s">Try to make groceries <span class="hl">deductible</span>.</p>
+        <div class="cell a-pop" style="--d:.6s;width:62cqw" id="cell5" data-at="4.2" data-class="shake bad">
+          <span class="dim">Groceries &amp; Essentials · Tax Status</span>
+          <span class="mono"><span class="type" data-text="Schedule C (100%)" data-start="1.6" data-speed="12" data-replace="Personal (0%)"></span> <span class="lock hold" data-at="4.4" data-class="show"><svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg></span></span>
+        </div>
+        <div class="toast hold" style="width:62cqw;text-align:left" data-at="4.8" data-class="show"><b>Groceries &amp; Essentials can't be "Schedule C (100%)".</b> Personal, living or family expenses aren't deductible. (IRS Publication 529) It's back to Personal (0%).</div>
+        <p class="dim a-fade" style="--d:7s;font-size:2cqw">The rules are locked. You can't talk the tool into a bad deduction.</p>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section class="scene s6" data-dur="12">
+      <div class="cols">
+        <div class="card a-l" style="--d:.2s;display:grid;gap:1.8cqh">
+          <div style="display:flex;justify-content:space-between;font-size:2.1cqw;font-weight:700"><span>Verizon · phone bill</span><span class="mono">$90.00</span></div>
+          <div class="dim" style="font-size:1.8cqw">Business Use %</div>
+          <div class="meter"><i style="--w:60%;--d:.8s"></i></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:2.4cqw"><span class="mono"><i class="count" data-to="60" data-start=".8" data-dur="1.6" data-suffix="%">0%</i></span><span class="mono ok-hl">Deduct <i class="count" data-to="54" data-start=".8" data-dur="1.6" data-prefix="$" data-dec="2">$0.00</i></span></div>
+          <div class="cell" style="font-size:1.8cqw;box-shadow:none"><span class="dim">Your Reason</span><span><span class="type" data-text="Client calls, 6 of 10 hours" data-start="3.4" data-speed="22"></span></span></div>
+          <div style="display:flex;gap:1cqw;align-items:center;font-size:1.8cqw"><span class="dim">Check Before Filing</span><span class="chip warn hold" data-at="2.8" data-class="show">Add a reason</span><span class="chip done hold" data-at="6.2" data-class="show">All good ✓</span></div>
+        </div>
+        <div style="display:grid;gap:2.4cqh">
+          <div class="toast good a-r" style="--d:2.4s;font-size:1.8cqw"><b>You decided. The tool recorded it.</b> A reason is what you'd show a tax professional.</div>
+          <div class="card a-r" style="--d:6.8s;background:var(--honey-pale)"><div class="chip warn" style="margin-bottom:1cqh">Unusual</div><div style="font-size:1.8cqw">Walmart saved as <b>Office Supplies</b>. The tool usually files it as Groceries: add what it was for.</div></div>
+          <div class="a-fade dim" style="--d:9s;font-size:1.8cqw">Every report says who decided: the tool's rules, you with a reason, or you without one.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section class="scene s7" data-dur="11">
+      <div class="cols" style="grid-template-columns: 1.25fr .75fr">
+        <div style="position:relative">
+          <svg class="road a-fade" viewBox="0 0 500 220" aria-hidden="true"><path pathLength="1" d="M20 150 C 110 40, 190 190, 300 80 S 440 120, 480 40"/><path class="draw" pathLength="1" d="M20 150 C 110 40, 190 190, 300 80 S 440 120, 480 40"/><polygon class="car" points="0,-15 13,-7.5 13,7.5 0,15 -13,7.5 -13,-7.5" fill="#FFC530" stroke="#0F2B1C" stroke-width="3.5"/></svg>
+        </div>
+        <div style="display:grid;gap:1.8cqh">
+          <div class="card a-r" style="--d:.5s"><div class="dim" style="font-size:1.6cqw">Trip log</div><div style="font-size:1.9cqw;font-weight:700">Home → Client A<br><span class="dim" style="font-weight:400">Site visit</span></div><div class="mono" style="font-size:3.4cqw;font-weight:700;margin-top:.6cqh"><span class="hl"><i class="count" data-to="100" data-start=".5" data-dur="4.6" data-suffix=" mi">0 mi</i></span></div></div>
+          <div class="rate mono a-fade" style="--d:2s"><span class="chip warn">Jan–Jun · 72.5¢</span><span class="chip done hold" data-at="6" data-class="show">1 Jul · 76¢</span></div>
+          <div class="mono" style="font-size:3cqw;font-weight:700"><span class="ok-hl"><i class="count" data-to="72.5" data-start="2.6" data-dur="2.4" data-prefix="$" data-dec="2">$0.00</i></span></div>
+          <div class="a-fade dim" style="--d:7s;font-size:1.7cqw">The IRS rate changed mid-year. The tool picks the right one for each trip's date, and counts a trip only with a destination and a purpose.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 -->
+    <section class="scene s8" data-dur="11">
+      <div class="cols" style="grid-template-columns: 1.15fr .85fr">
+        <div class="card">
+          <b style="font-size:2.3cqw;font-weight:800">Schedule C, line by line</b>
+          <div class="line a-rise" style="--d:.4s"><span class="n">Line 1</span><span>Gross receipts</span><span class="mono">$5,000.00</span></div>
+          <div class="line a-rise" style="--d:.9s"><span class="n">Line 8</span><span>Advertising</span><span class="mono">$300.00</span></div>
+          <div class="line a-rise" style="--d:1.4s"><span class="n">Line 9</span><span>Car and truck (mileage)</span><span class="mono">$148.50</span></div>
+          <div class="line a-rise" style="--d:1.9s"><span class="n">Line 15</span><span>Insurance</span><span class="mono">$60.00</span></div>
+          <div class="line a-rise" style="--d:2.4s"><span class="n">Line 18</span><span>Office expense</span><span class="mono">$120.00</span></div>
+          <div class="line a-rise" style="--d:2.9s"><span class="n">Line 27b</span><span>Software &amp; other</span><span class="mono">$83.39</span></div>
+          <p class="dim a-fade" style="--d:3.6s;font-size:1.6cqw;margin:1.4cqh 0 0">Your preparer copies these straight across.</p>
+        </div>
+        <div style="display:grid;gap:2.4cqh">
+          <div class="card est a-r" style="--d:4.6s"><div class="dim" style="font-size:1.6cqw;font-weight:600">Estimated tax for 2026</div><div style="font-weight:700;font-size:2cqw;margin:.6cqh 0">Next payment due 15 Jan 2027</div><div class="mono" style="font-size:4cqw;font-weight:700;letter-spacing:-.03em"><i class="count" data-to="1500" data-start="5" data-dur="2" data-prefix="$" data-dec="2">$0.00</i></div><div class="dim" style="font-size:1.6cqw">to pay by then · the IRS safe harbor</div></div>
+          <div class="toast a-r" style="--d:8s;font-size:1.7cqw"><b>Not a surprise in January.</b> You see it coming, in plain numbers.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9 -->
+    <section class="scene s9" data-dur="10">
+      <div class="center" style="gap:3cqh">
+        <p class="mid a-drop" style="--d:.1s">Why a buyer can <span class="hl">trust</span> it</p>
+        <div class="pillars">
+          <div class="pillar card a-rise" style="--d:.5s"><svg class="ic ico" aria-hidden="true"><use href="#i-lock"/></svg><b>Locked to IRS rules</b><span>Groceries, fines and entertainment can't be made deductible.</span></div>
+          <div class="pillar card a-rise" style="--d:1s"><svg class="ic ico" aria-hidden="true"><use href="#i-pen"/></svg><b>Your facts, your reason</b><span>Every exception needs a written reason, kept with the row.</span></div>
+          <div class="pillar card a-rise" style="--d:1.5s"><svg class="ic ico" aria-hidden="true"><use href="#i-link"/></svg><b>Every rule has a source</b><span>Click through to the IRS page behind each treatment.</span></div>
+          <div class="pillar card a-rise" style="--d:2s"><svg class="ic ico" aria-hidden="true"><use href="#i-cloud"/></svg><b>Stays in your Google account</b><span>No server of ours. Your records stay in your own sheet.</span></div>
+        </div>
+        <div class="mono a-fade" style="--d:3.2s;font-size:2.1cqw"><span class="ok-hl"><i class="count" data-to="471" data-start="3.4" data-dur="2.6">0</i> automated checks pass</span> <span class="dim">· built on IRS published rules, with sources</span></div>
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section class="scene s10" data-dur="8">
+      <svg class="spin-hex" viewBox="0 0 100 87" aria-hidden="true"><polygon points="25,2 75,2 98,43.5 75,85 25,85 2,43.5" fill="#FFF3CC" stroke="#0F2B1C" stroke-opacity=".25" stroke-width="3"/></svg>
+      <div class="center">
+        <svg class="logo a-pop" style="--d:.1s;width:7cqw;height:7cqw" aria-hidden="true"><use href="#logo"/></svg>
+        <h2 class="big a-rise" style="--d:.3s;font-size:5.8cqw">Keep your receipts.<br><span class="box lime">We keep your numbers honest.</span></h2>
+        <p class="tag dim a-fade" style="--d:1.4s;font-size:2.1cqw;max-width:56cqw;margin:0">A record-keeping tool, not tax advice. Check your numbers with a tax professional before you file.</p>
+        <span class="chip warn a-pop" style="--d:2.2s;font-size:2cqw">TallyBee</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+  <div class="ctl">
+    <button id="back" type="button" aria-label="Previous scene">◀ Back</button>
+    <button id="play" class="play" type="button">❚❚ Pause</button>
+    <button id="next" type="button" aria-label="Next scene">Next ▶</button>
+    <button id="again" type="button">↺ Replay</button>
+    <div class="dots" id="dots" role="group" aria-label="Scenes"></div>
+  </div>
+  <div class="caption" id="caption" aria-live="polite"><span class="need" id="need"></span><h2 id="ttl"></h2><p id="sub"></p></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var scenes = Array.prototype.slice.call(document.querySelectorAll('.scene'));
+  var info = [
+    ['The product', 'TallyBee, in 100 seconds', 'A Google Sheet that knows the IRS rules for what you spend, and shows its homework. One purchase, no subscription.'],
+    ['The need', 'You have a pile of receipts and one question', 'Which of these can I deduct, and can I prove it? Most freelancers guess, or pay someone to sort it out in April.'],
+    ['Need 1: be on the right form', 'Say what you do, once', 'You pick your kind of work. The tool fills in your Schedule C business code, saves the date you agreed to how it works, and stays off until you do.'],
+    ['Need 2: no sorting by hand', 'Import a bank file or photograph a receipt', 'Rules sort each purchase and say plainly whether it is deductible. A mixed receipt is split item by item, because the IRS looks at purpose, not at the store.'],
+    ['Need 3: no bad deductions', 'The rules can’t be argued with', 'Type over a locked cell and it goes back, with the reason and the IRS page. Groceries, fines and entertainment never become deductions.'],
+    ['Need 4: honest exceptions', 'You decide the facts, and say why', 'A phone used 60% for work deducts 60%. The tool asks for the reason and keeps it with the row, so you can show it later. Unusual choices are flagged.'],
+    ['Need 5: driving', 'A mileage log that uses the right rate', 'Date, miles, where, why. The tool uses the IRS rate for that day (70¢ in 2025; 72.5¢, then 76¢ from 1 July 2026) and skips commuting.'],
+    ['Need 6: hand it over', 'Totals your preparer can copy', 'Deductions by Schedule C line, plus your next estimated tax payment, so January is not a surprise.'],
+    ['Need 7: trust', 'Built so a buyer can rely on it', 'Locked rules, sources on every number, a written reason for every exception, and your data stays in your own Google account.'],
+    ['Last thing', 'Keep your receipts', 'The tool records what you spent. The IRS may ask for the receipt, so keep it. A record-keeping tool, not tax advice.']
+  ];
+  var cur = 0, playing = true, t = 0, last = 0;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var el = function (id) { return document.getElementById(id); };
+  var dots = el('dots');
+  scenes.forEach(function (s, i) {
+    var d = document.createElement('button');
+    d.type = 'button'; d.className = 'dot'; d.setAttribute('aria-label', 'Scene ' + (i + 1) + ': ' + info[i][1]);
+    d.addEventListener('click', function () { go(i); });
+    dots.appendChild(d);
+  });
+
+  // The comb of six code boxes on the first-use scene.
+  var comb = el('comb');
+  var code = '541400';
+  comb.innerHTML = '';
+  for (var c = 0; c < 6; c++) {
+    var b = document.createElement('span');
+    b.className = 'on-d'; b.style.setProperty('--d', (3 + c * 0.18) + 's'); b.textContent = code.charAt(c);
+    comb.appendChild(b);
+  }
+
+  function fmt(el, v) {
+    var dec = Number(el.getAttribute('data-dec') || 0);
+    var s = v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    el.textContent = (el.getAttribute('data-prefix') || '') + s + (el.getAttribute('data-suffix') || '');
+  }
+
+  function reset(scene) {
+    scene.querySelectorAll('.type').forEach(function (n) { n.textContent = ''; n.classList.remove('caret'); });
+    scene.querySelectorAll('.count').forEach(function (n) { fmt(n, 0); });
+    scene.querySelectorAll('[data-at]').forEach(function (n) { n.classList.remove('go'); (n.getAttribute('data-class') || '').split(' ').forEach(function (k) { if (k) n.classList.remove(k); }); });
+  }
+
+  function show(i) {
+    scenes.forEach(function (s, k) { s.classList.remove('on'); if (k !== i) reset(s); });
+    var scene = scenes[i];
+    reset(scene);
+    void scene.offsetWidth;
+    scene.classList.add('on');
+    t = 0;
+    var inf = info[i];
+    el('need').textContent = inf[0]; el('ttl').textContent = inf[1]; el('sub').textContent = inf[2];
+    Array.prototype.forEach.call(dots.children, function (d, k) { d.setAttribute('aria-current', k === i ? 'true' : 'false'); });
+    if (reduce) finalize(scene);
+  }
+
+  // With reduced motion, show each scene at its end state.
+  function finalize(scene) {
+    scene.querySelectorAll('.count').forEach(function (n) { fmt(n, Number(n.getAttribute('data-to'))); });
+    scene.querySelectorAll('.type').forEach(function (n) { n.textContent = n.getAttribute('data-replace') || n.getAttribute('data-text'); });
+    scene.querySelectorAll('[data-at]').forEach(function (n) { n.classList.add('go'); (n.getAttribute('data-class') || '').split(' ').forEach(function (k) { if (k) n.classList.add(k); }); });
+  }
+
+  function frame(scene) {
+    scene.querySelectorAll('.type').forEach(function (n) {
+      var start = Number(n.getAttribute('data-start')), speed = Number(n.getAttribute('data-speed') || 20);
+      var text = n.getAttribute('data-text'), replace = n.getAttribute('data-replace');
+      var typed = Math.max(0, Math.min(text.length, Math.floor((t - start) * speed)));
+      var done = typed >= text.length;
+      var swapAt = start + text.length / speed + 2.4; // typed value held, then put back
+      if (replace && t > swapAt) { n.textContent = replace; n.classList.remove('caret'); return; }
+      n.textContent = text.slice(0, typed);
+      n.classList.toggle('caret', t >= start && !done);
+    });
+    scene.querySelectorAll('.count').forEach(function (n) {
+      var start = Number(n.getAttribute('data-start')), dur = Number(n.getAttribute('data-dur')) || 1, to = Number(n.getAttribute('data-to'));
+      var k = Math.max(0, Math.min(1, (t - start) / dur));
+      fmt(n, to * (1 - Math.pow(1 - k, 3)));
+    });
+    scene.querySelectorAll('[data-at]').forEach(function (n) {
+      var on = t >= Number(n.getAttribute('data-at'));
+      if (on && !n.classList.contains('go')) {
+        n.classList.add('go');
+        (n.getAttribute('data-class') || '').split(' ').forEach(function (k) { if (k) n.classList.add(k); });
+      }
+    });
+  }
+
+  function go(i) { cur = (i + scenes.length) % scenes.length; show(cur); }
+  function tick(now) {
+    var dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (playing && !reduce) {
+      t += dt;
+      var dur = Number(scenes[cur].getAttribute('data-dur'));
+      frame(scenes[cur]);
+      var total = scenes.reduce(function (a, s) { return a + Number(s.getAttribute('data-dur')); }, 0);
+      var before = 0; for (var k = 0; k < cur; k++) before += Number(scenes[k].getAttribute('data-dur'));
+      el('bar').style.width = (100 * (before + Math.min(t, dur)) / total) + '%';
+      if (t >= dur) { if (cur < scenes.length - 1) go(cur + 1); else setPlaying(false); }
+    }
+    requestAnimationFrame(tick);
+  }
+  function setPlaying(p) {
+    playing = p;
+    document.body.classList.toggle('paused', !p);
+    el('play').textContent = p ? '❚❚ Pause' : '▶ Play';
+  }
+  el('play').addEventListener('click', function () { if (!playing && cur === scenes.length - 1 && t >= Number(scenes[cur].getAttribute('data-dur'))) go(0); setPlaying(!playing); });
+  el('back').addEventListener('click', function () { go(cur - 1); });
+  el('next').addEventListener('click', function () { go(cur + 1); });
+  el('again').addEventListener('click', function () { go(0); setPlaying(true); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight') go(cur + 1); else if (e.key === 'ArrowLeft') go(cur - 1); else if (e.key === ' ' && e.target === document.body) { e.preventDefault(); setPlaying(!playing); }
+  });
+
+  // Jump to a moment in the current scene (also useful for checking a scene's end state).
+  window.seekDemo = function (sec) {
+    t = sec;
+    var scene = scenes[cur];
+    frame(scene);
+    scene.getAnimations({ subtree: true }).forEach(function (a) { a.currentTime = sec * 1000; });
+  };
+
+  // A link ending in #s3 opens at scene 3.
+  go(Math.max(0, Number((/^#s(\d+)$/.exec(location.hash) || [])[1] || 1) - 1));
+  if (reduce) setPlaying(false);
+  requestAnimationFrame(function (n) { last = n; tick(n); });
+})();
+</script>
+
+</body>
+</html>
